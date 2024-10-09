@@ -1,0 +1,337 @@
+FL Note: A- Grade, well done! I would recommend providing a little more theoretical underpinning into why you are comparing deaths to time specifically. It may help as well to dig into a more specific cancer and consider how regional differences matter. Well done visuals and normalizing of death rates by country. 
+---
+title: "Analysis of Cancer Deaths by Country and Type"
+author: "Rishav Eliyahu Sofer"
+date: "8/15/2024"
+output: slidy_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Purpose of Analysis
+
+The data I have selected is from a longitudinal study that collected data on cancer deaths across various countries and cancer types between 1990 and 2016.
+
+- The study allows for the analysis of global cancer mortality trends over time.
+- It provides insights into which types of cancer are most prevalent in different countries
+- The dataset allows for comparisons of cancer mortality rates across countries, highlighting potential disparities in healthcare access and quality.
+- By analyzing the data, we can identify patterns that may inform future research decisions.
+
+Today I will be showing basic analysis of this cancer mortality data to see if any significant trends can be identified.
+
+Note: Deaths are in the thousands.
+
+## Reading Data
+
+The data was collected from Kaggle and is part of the dataset titled 'Cancer Deaths by Country and Type (1990-2016)', which provides comprehensive information on cancer mortality trends across different countries and cancer types over a 26-year period.
+
+
+```{r Reading Data, echo=TRUE}
+#Importing important libraries (All may not be used but these are generally imporant for this kind of data analysis)
+library(tidyverse)  
+library(tidyr)
+library(ggplot2)    
+library(dplyr)     
+library(plotly)
+library(stats)
+
+# Reading in the .csv file from the raw GitHub URL.
+cancer <- read.csv("https://raw.githubusercontent.com/rishavsofer/NYU_R_Project/main/Cancer%20Deaths%20by%20Country%20and%20Type%20Dataset.csv")
+
+# Showing the top rows of the data for visualization.
+head(cancer)
+```
+
+## Cleaning and Re-Organizing the Data
+
+The data required re-naming columns for consistency and re-organization into long format for ease of analysis.
+
+```{r Cleaning and Re-Organizing, echo=TRUE}
+
+# Renaming columns for consistency
+cancer_renamed <- cancer %>%
+  rename(
+    Country = "Country",
+    Code = "Code",
+    Year = "Year",
+    Liver_Cancer = "Liver.cancer",
+    Kidney_Cancer = "Kidney.cancer",
+    Larynx_Cancer = "Larynx.cancer",
+    Breast_Cancer = "Breast.cancer",
+    Thyroid_Cancer = "Thyroid.cancer",
+    Stomach_Cancer = "Stomach.cancer",
+    Bladder_Cancer = "Bladder.cancer",
+    Uterine_Cancer = "Uterine.cancer",
+    Ovarian_Cancer = "Ovarian.cancer",
+    Cervical_Cancer = "Cervical.cancer",
+    Prostate_Cancer = "Prostate.cancer",
+    Pancreatic_Cancer = "Pancreatic.cancer",
+    Esophageal_Cancer = "Esophageal.cancer",
+    Testicular_Cancer = "Testicular.cancer",
+    Nasopharynx_Cancer = "Nasopharynx.cancer",
+    Other_Phariynx_Cancer = "Other.pharynx.cancer",
+    Colon_Rectum_Cancer = "Colon.and.rectum.cancer",
+    Non_Melanoma_Skin_Cancer = "Non.melanoma.skin.cancer",
+    Lip_Oral_Cavity_Cancer = "Lip.and.oral.cavity.cancer",
+    Brain_Nervous_System_Cancer = "Brain.and.nervous.system.cancer",
+    Tracheal_Bronchus_Lung_Cancer = "Tracheal..bronchus..and.lung.cancer.",
+    Gallbladder_Biliary_Tract_Cancer = "Gallbladder.and.biliary.tract.cancer",
+    Malignant_Skin_Melanoma = "Malignant.skin.melanoma",
+    Leukemia = "Leukemia",
+    Hodgkin_Lymphoma = "Hodgkin.lymphoma",
+    Multiple_Myeloma = "Multiple.myeloma",
+    Other_Cancers = "Other.cancers"
+  )
+
+# Previewing the renamed columns
+colnames(cancer_renamed)
+
+# Reshaping the data to long format
+cancer_long <- cancer_renamed %>%
+  pivot_longer(cols = c(
+    Liver_Cancer, Kidney_Cancer, Larynx_Cancer, Breast_Cancer, 
+    Thyroid_Cancer, Stomach_Cancer, Bladder_Cancer, Uterine_Cancer, 
+    Ovarian_Cancer, Cervical_Cancer, Prostate_Cancer, Pancreatic_Cancer, 
+    Esophageal_Cancer, Testicular_Cancer, Nasopharynx_Cancer, 
+    Other_Phariynx_Cancer, Colon_Rectum_Cancer, Non_Melanoma_Skin_Cancer, 
+    Lip_Oral_Cavity_Cancer, Brain_Nervous_System_Cancer, 
+    Tracheal_Bronchus_Lung_Cancer, Gallbladder_Biliary_Tract_Cancer, 
+    Malignant_Skin_Melanoma, Leukemia, Hodgkin_Lymphoma, 
+    Multiple_Myeloma, Other_Cancers),
+    names_to = "Cancer_Type",
+    values_to = "Deaths"
+  )
+
+# Previewing the long format data
+head(cancer_long)
+
+```
+
+
+## Checking for NA's within the data
+To check if there are any NA's in case they needed to be dealt with for more efficient analysis
+
+```{r NAs, echo=TRUE}
+# Counting NAs in each column
+na_count <- cancer_long %>%
+  summarise(across(everything(), ~ sum(is.na(.))))
+
+# Preview the result
+na_count
+```
+NA's were found in the 'Code' column which is a column that codes country names so a closer look is taken at that
+
+```{r Looking at NAs, echo=TRUE}
+# Filter the rows where 'Code' is NA
+na_codes <- cancer_long %>%
+  filter(is.na(Code))
+
+# Preview the rows with NA in 'Code' column
+head(na_codes)
+
+summary(na_codes)
+```
+
+## Checking NA's in Code for Correlated Country
+Based on the results of the head(na_codes) prompt, we are checking what Country names are associated with NA's
+
+```{r echo=TRUE}
+# Get a list of unique countries where 'Code' is NA
+countries_with_na_code <- na_codes %>%
+  distinct(Country) %>%
+  pull(Country)
+
+# Print the list of countries
+print(countries_with_na_code)
+
+```
+
+- All of NA's were associated with country names "Caribbean" and "North America"
+- It should be noted that neither of these are country names but are rather names of geo-political regions
+
+
+**Decision:** Omit NAs as well as other regional categories and retain only country-specific data
+```{r NA Omit, echo=TRUE}
+#Omitting all NAs
+
+cancer.clean <- na.omit(cancer_long)
+
+#Specifying the regions to exclude
+regions <- c("World", "East Asia", "Western Europe", "Africa","Eastern Europe","Southeast Asia","South Asia","Latin America and Caribbean","Sub-Saharan Africa")
+
+# Filter the dataset
+cancer.clean <- cancer.clean %>%
+  filter(!Country %in% regions)
+```
+
+
+## Analysis 1: Global Cancer Mortality Trends Over Time
+
+- Objective: Identify overall patterns in cancer deaths globally.
+- Approach: Calculate total cancer deaths per year and visualize the trend using a line chart.
+
+```{r echo=TRUE, fig.align='center', fig.height=10, fig.width=10, warning=FALSE}
+# Calculating total deaths per year
+
+total_deaths <- cancer.clean %>%
+  group_by(Year) %>%
+  summarize(Total_Deaths = sum(Deaths))
+
+# Linear model
+model <- lm(Total_Deaths ~ Year, data = total_deaths)
+
+# Creating the plot with linear fit
+ggplot(total_deaths, aes(x = Year, y = Total_Deaths)) +
+  geom_line() +
+  geom_smooth(method = "lm", se = FALSE) +  
+  labs(title = "Global Cancer Deaths Over Time with Linear Fit",
+       x = "Year",
+       y = "Total Deaths")
+
+#Examining coefficients and statistical significance
+summary(model)
+```
+- Impressive R-squared value of 0.9965
+
+## Analysis 2: Cancer Type-Specific Mortality Trends
+
+- Objective: Understand the changing landscape of cancer types.
+- Approach: Calculate the proportion of deaths for each cancer type over time, visualize the trends using stacked area charts and identify cancer types with increasing or decreasing mortality rates.
+
+```{r echo=TRUE}
+# To analyze cancer type-specific trends, we'll need to calculate the proportion of deaths for each cancer type per year
+
+cancer_type_proportions <- cancer.clean %>%
+  group_by(Year, Cancer_Type) %>%
+  summarize(Total_Deaths = sum(Deaths)) %>%
+  group_by(Year) %>%
+  mutate(Proportion = Total_Deaths / sum(Total_Deaths))
+
+```
+
+```{r echo=TRUE, fig.align='center', fig.height=10, fig.width=10}
+# A stacked area chart is suitable for visualizing proportions over time:
+
+
+ggplot(cancer_type_proportions, aes(x = Year, y = Proportion, fill = Cancer_Type)) +
+  geom_area() +
+  labs(title = "Proportion of Cancer Deaths by Type Over Time",
+       x = "Year",
+       y = "Proportion of Deaths")
+```
+**Closer Look:** Look at only the top 5 cancer types
+
+```{r echo=TRUE, fig.align='center', fig.height=10, fig.width=10}
+# Filtering by top cancer types
+
+top_cancer_types <- cancer.clean %>%
+  group_by(Cancer_Type) %>%
+  summarize(Total_Deaths = sum(Deaths)) %>%
+  arrange(desc(Total_Deaths)) %>%
+  head(n = 5) 
+
+top_cancer_data <- cancer.clean %>%
+  filter(Cancer_Type %in% top_cancer_types$Cancer_Type) %>%
+  group_by(Year, Cancer_Type) %>%
+  summarize(Total_Deaths = sum(Deaths)) %>%
+  group_by(Year) %>%
+  mutate(Proportion = Total_Deaths / sum(Total_Deaths))
+
+ggplot(top_cancer_data, aes(x = Year, y = Proportion, fill = Cancer_Type)) +
+  geom_area() +
+  labs(title = "Proportion of Deaths for Top Cancer Types Over Time",
+       x = "Year",
+       y = "Proportion of Deaths")
+
+```
+
+## Analysis 3: Cancer Mortality Disparities Between Countries
+- Objective: Explore differences in cancer outcomes across countries.
+- Approach: Identify countries with high cancer mortality burdens.
+```{r echo=TRUE, fig.align='center', warning=FALSE}
+# Calculating total deaths per country
+total_deaths <- cancer.clean %>%
+  group_by(Country) %>%
+  summarize(Total_Deaths = sum(Deaths))
+
+# Ranking countries by total deaths
+ranked_countries <- total_deaths %>%
+  arrange(desc(Total_Deaths))
+
+# Getting top and bottom 5 countries
+top_5 <- head(ranked_countries, 5)
+
+# Creating a ggplot object
+p <- ggplot(top_5, aes(x = reorder(Country, Total_Deaths), y = Total_Deaths, fill = Country)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(title = "Top 5 Countries by Total Cancer Deaths",
+       x = "Country",
+       y = "Total Deaths") +
+  theme(legend.position = "none")
+
+# Converting to interactive plot
+ggplotly(p)
+
+#Seeing absolute numbers of total deaths by country
+print(top_5)
+```
+- It should be noted that the top 5 countries in the world by population (Earth Database, 2005) are: China, India, United States, Indonesia and Brazil
+
+**Closer Look:** Look at the order of magnitude difference between the top 5 countries by total deaths
+
+```{r echo=TRUE, fig.align='center', warning=FALSE}
+# Calculating order of magnitude for Total Deaths
+top_5 <- top_5 %>%
+  mutate(Magnitude = floor(log10(Total_Deaths)))
+
+ggplot(top_5, aes(x = Country, y = Magnitude)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Order of Magnitude of Total Deaths by Country",
+       x = "Country",
+       y = "Order of Magnitude")
+print(top_5)
+```
+
+## Discussion and Future Directions
+
+**Discussion**
+
+- There is a general increase in the number of deaths caused by cancer per year, with the increase being linear with an R value of 0.9965 and a p value of 2.2e-16.
+- The cancer types with the highest proportions of cancer deaths are breast, colon-rectum, liver, stomach and tracheal-bronchus lung cancer in increasing proportionality. While most of this cancer types remained the same or decreased in proportion, incidence of tracheal-bronchus lung cancer increased over time.
+- The top 5 countries for cancer deaths in the world in decreasing order were China, the United States, India, Japan and Russia with Japan and Russia having a lower order of magnitude (6 vs. 7) than the other countries.
+    - It should be noted that by world population (Earth Database, 2005), the 4th and 5th most populous countries are Indonesia and Brazil, so the higher incidence of cancer deaths in Japan and Russia could be significant.
+
+
+**Future Directions**
+
+The results of this project point to many future directions in terms of research, including:
+
+- Inquiry into why the increase in cancer moralities by year is almost linear and exploring possible causes
+- Investigating why the incidence tracheal-bronchus lung cancer moralities increased over time and if this increase was linked with geographical disparities in cancer mortality rates by conducting a more in-depth analysis of regional variations and identifying potential underlying factors.
+- Investigating the increased incidence of cancer moralities in Russia and Japan by looking at socio-economic data from all countries and comparing this with the mortality rate
+-Utilize advanced statistical methods such as machine learning to predict future cancer moralities for countries based on past data.
+
+## References
+
+-  Antimoni. (2020). Cancer deaths by country and type (1990-2016) [Data set]. Kaggle. https://www.kaggle.com/datasets/antimoni/cancer-deaths-by-country-and-type-1990-2016/data
+- Earth Database. (2005). Population by country. https://database.earth/population/by-country/2005
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
